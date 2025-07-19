@@ -1,0 +1,60 @@
+{
+    "epochs": 200,
+    "batch_size": 4,
+    "eval_batch_size": 1,
+    "num_workers": 12,
+    "pl_module": "src.hl_modules.bss.Module",
+    "pl_module_args": {
+        "model": "src.models.bss.net.Net",
+        "model_params": {
+            "L": 16,
+            "De": 256,
+            "D": 128,
+            "hidden_dim": 256,
+            "K": 96,
+            "M": 2,
+            "N": 8,
+            "n_head": 4,
+            "in_channel": 1,
+            "max_spk": 4
+        },
+        "samples_per_speaker_number": 3,
+        "metrics": [
+            "si_sdr_i"
+        ],
+        "loss": "src.losses.MultiScaleLoss.MultiScaleLoss",
+        "loss_params": {
+            "loss_type": "sisdr"
+        },
+        "optimizer": "torch.optim.AdamW",
+        "optimizer_params": {
+            "lr": 0.0004
+        },
+        "grad_clip": 5,
+        "scheduler": "torch.optim.lr_scheduler.ReduceLROnPlateau",
+        "scheduler_params": {
+            "mode": "min",
+            "patience": 5,
+            "factor": 0.5,
+            "min_lr": 1e-6
+        }
+    },
+    "train_dataset": "src.datasets.BSSDataset.BSSDataset",
+    "train_data_args": {
+        "speech_dir": "/scr/LibriSpeech/train-clean-360",
+        "duration": 4,
+        "sr": 8000,
+        "samples_per_epoch": 20000,
+        "speaker_percentage": 100,
+        "speaker_count_choices": [2,3,4]
+    },
+    "val_dataset": "src.datasets.BSSDataset.BSSDataset",
+    "val_data_args": {
+        "speech_dir": "/scr/LibriSpeech/dev-clean",
+        "duration": 4,
+        "sr": 8000,
+        "samples_per_epoch": 400,
+        "speaker_percentage": 100,
+        "speaker_count_choices": [2,3,4]
+    }
+}

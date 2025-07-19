@@ -60,30 +60,6 @@ class TDAModule(nn.Module):
 
         self.existence_linear = nn.Linear(D, 1)  # Maps D dimensional attractor to a single logit
 
-    # def overlap_add(self, U: torch.Tensor, hop_size: int) -> torch.Tensor:
-    #     """
-    #     Args:
-    #         U: Tensor of shape [B, K, S, D]
-    #         hop_size: int, e.g. math.ceil(K/2)
-
-    #     Returns:
-    #         Tensor of shape [B, T', D], where
-    #         T' = (S - 1) * hop_size + K
-    #     """
-    #     B, K, S, D = U.shape
-    #     # compute the total output length
-    #     T = (S - 1) * hop_size + K
-
-    #     # allocate output
-    #     out = U.new_zeros((B, T, D))
-
-    #     # for each chunk, add it into the right time‐range
-    #     for s in range(S):
-    #         start = s * hop_size
-    #         out[:, start : start + K, :] += U[:, :, s, :]
-
-    #     return out
-
     def _overlap_add(self, x, original_length):
         """
         Args:
@@ -111,25 +87,6 @@ class TDAModule(nn.Module):
 
         return x_out
 
-        # total_length = stride * (S - 1) + K
-
-        # x_perm = x.permute(0, 3, 1, 2)  # → (B, D, K, S)
-        # x_flat = x_perm.reshape(B, D * K, S)  # → (B, D*K, S)
-
-        # y = F.fold(
-        #     x_flat, output_size=(1, total_length), kernel_size=(1, K), stride=(1, stride)
-        # )  # → (B, D, 1, total_length)
-        # y = y.squeeze(2).permute(0, 2, 1)  # → (B, total_length, D)
-
-        # ones = x.new_ones((1, K, S))
-        # counts = F.fold(ones, output_size=(1, total_length), kernel_size=(1, K), stride=(1, stride))
-        # counts = counts.squeeze()
-
-        # y = y / counts.view(1, -1, 1)
-
-        # # Trim off any padding beyond original_length
-        # return y[:, :original_length, :]
-
     def forward(self, U_out, C=None, T=4001):
         """
         Args:
@@ -142,21 +99,6 @@ class TDAModule(nn.Module):
         # [1, 96, 167, 128] [B, K, S, D]
         B, K, S, D = U_out.shape
 
-        # overlap add
-        # print("u out {}".format(U_out.shape)) [1, 96, 82, 128]
-        context = self._overlap_add(U_out, T)
-        # context = self.layer_norm(context)
-
-        # if C is not None:
-        #     # print("c is {}".format(C)) [4, 4]
-        #     C = int(C.max().item())
-        #     queries = self.query_bank[: C + 1].unsqueeze(0).expand(B, -1, -1)
-        # else:
-        #     C_max_plus_1 = self.query_bank.shape[0]
-        #     queries = self.query_bank.unsqueeze(0).expand(B, -1, -1)
-        # if C is not None:
-        #     C = int(C.max().item())
-        # queries = self.query_bank[:C, :].unsqueeze(0).expand(B, -1, -1)
         if C is not None:
             num_queries = int(C.max().item()) + 1
         else:

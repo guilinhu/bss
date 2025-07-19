@@ -121,10 +121,6 @@ class Net(nn.Module):
 
             return {"output": waveform, "attractor_logits": attractor_logits}
 
-    # def compile(self):
-    #     self.tfgridnet.forward = torch.compile(self.tfgridnet.forward)
-    #     return self
-
 
 if __name__ == "__main__":
     pass

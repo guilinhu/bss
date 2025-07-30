@@ -6,11 +6,11 @@ from src.models.blocks.lstm_attention_block import LSTMAttentionBlock
 
 
 class Triple_Path_Block(nn.Module):
-    def __init__(self, D, hidden_dim, n_head, dropout):
+    def __init__(self, D, hidden_dim, n_head, dropout, rel_pos_bias_intra, rel_pos_bias_inter):
         super(Triple_Path_Block, self).__init__()
 
-        self.intra_block = LSTMAttentionBlock(D, hidden_dim, n_head, dropout)
-        self.inter_block = LSTMAttentionBlock(D, hidden_dim, n_head, dropout)
+        self.intra_block = LSTMAttentionBlock(D, hidden_dim, n_head, dropout, rel_pos_bias_intra)
+        self.inter_block = LSTMAttentionBlock(D, hidden_dim, n_head, dropout, rel_pos_bias_inter)
         self.inter_spk = nn.TransformerEncoderLayer(
             d_model=D,
             nhead=n_head,
@@ -54,11 +54,14 @@ class Triple_Path_Block(nn.Module):
 
 
 class Triple_Path_Process(nn.Module):
-    def __init__(self, num_block, hidden_dim, D, n_head, dropout):
+    def __init__(self, num_block, hidden_dim, D, n_head, dropout, rel_pos_bias_intra, rel_pos_bias_inter):
         super(Triple_Path_Process, self).__init__()
 
         self.triple_path_list = nn.ModuleList(
-            [Triple_Path_Block(D, hidden_dim, n_head, dropout) for i in range(num_block)]
+            [
+                Triple_Path_Block(D, hidden_dim, n_head, dropout, rel_pos_bias_intra, rel_pos_bias_inter)
+                for i in range(num_block)
+            ]
         )
 
     def forward(self, V):

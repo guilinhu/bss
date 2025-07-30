@@ -88,7 +88,7 @@ class Net(nn.Module):
             probs = probs[:, :-1]
 
             estimated_C = (probs > 0.5).sum(dim=1).clamp(min=1)  # (B,) avoid C=0
-            # TODO: for now take max estimated speaker from the whole batch
+            # taking max isn't necessary since batch size is always 1 during testing
             C = estimated_C.max().item()
             # when C not specified, sep_out contains C_max streams
             sep_out = sep_out_list[-1][:, :C, :, :]  # Take top-C speakers across batch

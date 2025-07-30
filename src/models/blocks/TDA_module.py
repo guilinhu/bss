@@ -27,18 +27,17 @@ class TransformerDecoderLayer(nn.Module):
     def forward(self, query, context, mask=None):
         x = query
         if not self.skip_self_attn:
-            # TODO: understand this
+            x = self.norm1(x)
             _x = self.self_attn(x, x, x, attn_mask=mask)[0]
             x = x + self.dropout(_x)
-            x = self.norm1(x)
 
+        x = self.norm2(x)
         _x = self.cross_attn(x, context, context)[0]
         x = x + self.dropout(_x)
-        x = self.norm2(x)
 
+        x = self.norm3(x)
         _x = self.ffn(x)
         x = x + self.dropout(_x)
-        x = self.norm3(x)
 
         return x
 
@@ -54,7 +53,7 @@ class TDAModule(nn.Module):
             [TransformerDecoderLayer(D, nhead, dropout, skip_self_attn=(i == 0)) for i in range(num_layers)]
         )
 
-        self.layer_norm = nn.LayerNorm(D)
+        self.norm = nn.LayerNorm(D)
 
         self.film = FiLM4D(input_channels=D, embedding_channels=D)
 
@@ -99,12 +98,31 @@ class TDAModule(nn.Module):
         # [1, 96, 167, 128] [B, K, S, D]
         B, K, S, D = U_out.shape
 
+        # overlap add
+        # print("u out {}".format(U_out.shape)) [1, 96, 82, 128]
+        context = self._overlap_add(U_out, T)
+        # context = self.layer_norm(context)
+
+        # if C is not None:
+        #     # print("c is {}".format(C)) [4, 4]
+        #     C = int(C.max().item())
+        #     queries = self.query_bank[: C + 1].unsqueeze(0).expand(B, -1, -1)
+        # else:
+        #     C_max_plus_1 = self.query_bank.shape[0]
+        #     queries = self.query_bank.unsqueeze(0).expand(B, -1, -1)
+        # if C is not None:
+        #     C = int(C.max().item())
+        # queries = self.query_bank[:C, :].unsqueeze(0).expand(B, -1, -1)
+
         if C is not None:
+            # num_queries is C+1
             num_queries = int(C.max().item()) + 1
         else:
             num_queries = self.query_bank.num_embeddings
 
-        idx = torch.arange(num_queries, device=U_out.device, dtype=torch.long)
+        C_plus_1 = num_queries
+
+        idx = torch.arange(C_plus_1, device=U_out.device, dtype=torch.long)
         batch_idx = idx.unsqueeze(0).expand(B, -1)
 
         # lookup embeddings → [num_queries, D]
@@ -124,7 +142,10 @@ class TDAModule(nn.Module):
                 mask=causal_mask if i != 0 else None,  # first layer skips self attn
             )
 
-        attractor_logits = self.existence_linear(queries).squeeze(-1)
+        queries = self.norm(queries)
+
+        attractor_logits_full = self.existence_linear(queries).squeeze(-1)
+        # C+1
 
         if C is not None:
             # training
@@ -141,4 +162,4 @@ class TDAModule(nn.Module):
         # film
         V0 = self.film(U_out.unsqueeze(1).expand(-1, attractors.size(1), -1, -1, -1), attractors)
 
-        return attractor_logits, V0
+        return attractor_logits_full, V0

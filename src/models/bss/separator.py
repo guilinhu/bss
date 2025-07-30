@@ -7,6 +7,8 @@ import math
 from src.models.blocks.lstm_attention_block import LSTMAttentionBlock
 from src.models.blocks.TDA_module import TDAModule
 from src.models.blocks.triple_path_process import Triple_Path_Process
+from src.models.blocks.lstm_attention_block import RelativePositionBias
+from types import SimpleNamespace
 
 
 class Separator(nn.Module):
@@ -19,12 +21,24 @@ class Separator(nn.Module):
 
         self.proj = nn.Linear(De, D)
 
-        self.intra_block = LSTMAttentionBlock(D, hidden_dim, n_head, dropout)
-        self.inter_block = LSTMAttentionBlock(D, hidden_dim, n_head, dropout)
+        config = SimpleNamespace(bidirectional=True, num_buckets=32, max_distance=128, num_heads=n_head)
+        self.rel_pos_bias_intra = RelativePositionBias(config)
+        self.rel_pos_bias_inter = RelativePositionBias(config)
+
+        self.intra_block = LSTMAttentionBlock(D, hidden_dim, n_head, dropout, self.rel_pos_bias_intra)
+        self.inter_block = LSTMAttentionBlock(D, hidden_dim, n_head, dropout, self.rel_pos_bias_inter)
         self.TDA = TDAModule(D, num_layers=M, nhead=8, dropout=0.1, max_spk=max_spk)
         self.norm = nn.LayerNorm(D)
 
-        self.triple = Triple_Path_Process(num_block=N, hidden_dim=hidden_dim, D=D, n_head=n_head, dropout=dropout)
+        self.triple = Triple_Path_Process(
+            num_block=N,
+            hidden_dim=hidden_dim,
+            D=D,
+            n_head=n_head,
+            dropout=dropout,
+            rel_pos_bias_intra=self.rel_pos_bias_intra,
+            rel_pos_bias_inter=self.rel_pos_bias_inter,
+        )
 
         self.out_linear = nn.Linear(D, De)
 
@@ -121,9 +135,8 @@ class Separator(nn.Module):
         # print("u out {}".format(U_out.shape))  # [1, 96, 167, 128] [B, K, S, D]
 
         # TDA
-        attractor, tda_out = self.TDA(U_out, C, T)  # [B, C, K, S, D]
-        # attractor is not sliced, length C_max+1
-        # if C is given, tda_out only contains C streams. Otherwise, contains C_max streams
+        # attractor_logits length C+1 or C_max+1, tda_out C or C_max
+        attractor_logits, tda_out = self.TDA(U_out, C, T)  # [B, C, K, S, D]
 
         # ====triple path processing====
         triple_out_list = self.triple(tda_out)
@@ -143,4 +156,4 @@ class Separator(nn.Module):
 
             out_list.append(triple_out)
 
-        return out_list, attractor  # [B, C, T', De]
+        return out_list, attractor_logits  # [B, C, T', De]
